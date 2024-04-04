@@ -1,0 +1,87 @@
+ms-dotnet-dev
+================================
+build
+================================
+   Script Executor
+   
+>>echo "build stage"
+
+>>whoami
+
+>>dotnet clean
+
+>>dotnet nuget locals all -c
+>>dotnet restore --no-cache
+
+>>dotnet publish -c Release -p:UseAppHost=false
+
+>>echo "build stage compete"
+
+=======================================
+test
+=======================================
+Script Executor
+
+>>copy "C:\GoCD-Utils\dotnet-dep\appsettings\#{environment}\#{MS_NAME}\appsettings*.json" "%cd%\#{MS_NAME}\"
+
+Script Executor
+
+>>dotnet tool update dotnet-reportgenerator-globaltool --tool-path tools
+
+Script Executor
+
+>>dotnet test Tests/Integration.Tests/Integration.Tests.csproj  
+  -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura -p:CoverletOutput=Reports\Coverage\ 
+  -p:Threshold=10 -p:ThresholdType=method -p:ThresholdStat=total
+  
+Script Executor
+
+>>tools\reportgenerator.exe "-reports:Tests\Integration.Tests\Reports\Coverage\coverage.cobertura.xml" 
+  "-targetdir:Tests\Integration.Tests\Reports\Coverage\HTML"
+  
+Script Executor 
+
+>>dotnet test Tests/Unit.Tests/Unit.Tests.csproj  -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura 
+  -p:CoverletOutput=Reports\Coverage\ -p:Threshold=10 -p:ThresholdType=method -p:ThresholdStat=total
+  
+  
+Script Executor 
+
+>>tools\reportgenerator.exe "-reports:Tests\Unit.Tests\Reports\Coverage\coverage.cobertura.xml" "-targetdir:Tests\Unit.Tests\Reports\Coverage\HTML"
+
+====================================================
+deploy
+====================================================
+Fetch Artifact
+
+Type of Fetch Artifact*
+GoCD--------------select
+External
+
+Stage*======build
+
+job=====build
+
+source=====base-code-droplet
+
+Run If Conditions:
+Decide whether task should run, based on the status of the job. Learn More
+Passed----------------Selete
+Failed
+Any
+
+Script Executor
+
+>>copy "C:\GoCD-Utils\dotnet-dep\appsettings\#{environment}\#{MS_NAME}\appsettings*.json" "%cd%\base-code-droplet\Release\net5.0\publish"
+
+>>C:\GoCD-Utils\dotnet-dep\UpdateAppSettings\UpdateAppSettings.exe "%cd%\base-code-droplet\Release\net5.0\publish" "#{environment}" 
+     "%tripledeskey-#{environment}%"
+
+
+Script Executor
+
+>>Powershell.exe  -Command "C:\GoCD-Utils\dotnet-dep\createsite.ps1 -serverName '%dot-net-#{environment}-server%' 
+  -microserviceName '#{MS_NAME}'  -stagecounter '%GO_PIPELINE_LABEL%' -pipelinelabel '%GO_PIPELINE_NAME%' 
+  -sourcePath '%cd%\base-code-droplet\Release\net5.0\publish\' "
+  
+==============================================================================================================================================================
